@@ -40,7 +40,8 @@ def generate_voucher_pdf(customer_info: dict, items: list, payment_info: dict, o
     pdf.add_page()
     
     # Add Myanmar/Latin Font
-    font_path = os.path.join("fonts", "Pyidaungsu-Regular.ttf")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    font_path = os.path.join(base_dir, "fonts", "Pyidaungsu-Regular.ttf")
     if os.path.exists(font_path):
         pdf.add_font("Pyidaungsu", style="", fname=font_path)
     else:

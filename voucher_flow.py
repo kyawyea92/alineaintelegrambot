@@ -487,7 +487,8 @@ async def generate_and_send_pdf(update: Update, context: ContextTypes.DEFAULT_TY
     sheet.reduce_stock(items)
     
     pdf_filename = f"voucher_{chat_id}_{int(datetime.now().timestamp())}.pdf"
-    pdf_path = os.path.join("/Users/kyawyelwin/kot-pjs/alineaintelegrambot", pdf_filename)
+    import tempfile
+    pdf_path = os.path.join(tempfile.gettempdir(), pdf_filename)
     
     try:
         generate_voucher_pdf(customer, items, payment, pdf_path, tracking_number)
