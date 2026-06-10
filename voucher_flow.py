@@ -34,16 +34,20 @@ logger = logging.getLogger(__name__)
     STATE_DELIVERY_AMOUNT,
 ) = range(15)
 
-def get_cancel_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")]
-    ])
+def get_cancel_kb(back_callback: str = None) -> InlineKeyboardMarkup:
+    buttons = []
+    if back_callback:
+        buttons.append([InlineKeyboardButton("🔙 Back", callback_data=back_callback)])
+    buttons.append([InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")])
+    return InlineKeyboardMarkup(buttons)
 
-def get_skip_cancel_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⏩ Skip", callback_data="v_skip")],
-        [InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")]
-    ])
+def get_skip_cancel_kb(back_callback: str = None) -> InlineKeyboardMarkup:
+    buttons = []
+    buttons.append([InlineKeyboardButton("⏩ Skip", callback_data="v_skip")])
+    if back_callback:
+        buttons.append([InlineKeyboardButton("🔙 Back", callback_data=back_callback)])
+    buttons.append([InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")])
+    return InlineKeyboardMarkup(buttons)
 
 def _escape(text: str) -> str:
     """Escape special characters for Telegram HTML mode."""
@@ -90,44 +94,43 @@ async def input_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     context.user_data["voucher"]["customer"]["name"] = name
     await update.message.reply_text(
-        f"သတ်မှတ်ပြီးအမည်: <b>{_escape(name)}</b>\n\nလိပ်စာ (Address) ကို ရိုက်ထည့်ပေးပါရန်။ (မထည့်လိုက 'Skip' ကို နှိပ်ပါ)",
+        f"သတ်မှတ်ပြီးအမည်: <b>{_escape(name)}</b>\n\nလိပ်စာ (Address) ကို ရိုက်ထည့်ပေးပါရန်။",
         parse_mode="HTML",
-        reply_markup=get_skip_cancel_kb()
+        reply_markup=get_cancel_kb(back_callback="back_to_name")
     )
     return STATE_ADDRESS
 
 async def input_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     address = update.message.text.strip()
+    if not address:
+        await update.message.reply_text(
+            "လိပ်စာကို ရိုက်ထည့်ပေးပါရန်။",
+            reply_markup=get_cancel_kb(back_callback="back_to_name")
+        )
+        return STATE_ADDRESS
+
     context.user_data["voucher"]["customer"]["address"] = address
     await update.message.reply_text(
         f"သတ်မှတ်ပြီးလိပ်စာ: <b>{_escape(address)}</b>\n\nဖုန်းနံပါတ် ၁ (Phone Number 1) ကို ရိုက်ထည့်ပေးပါရန်။",
         parse_mode="HTML",
-        reply_markup=get_cancel_kb()
-    )
-    return STATE_PHONE1
-
-async def skip_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    context.user_data["voucher"]["customer"]["address"] = ""
-    await query.message.reply_text(
-        "လိပ်စာကို ကျော်လိုက်ပါပြီ။\n\nဖုန်းနံပါတ် ၁ (Phone Number 1) ကို ရိုက်ထည့်ပေးပါရန်။",
-        parse_mode="HTML",
-        reply_markup=get_cancel_kb()
+        reply_markup=get_cancel_kb(back_callback="back_to_address")
     )
     return STATE_PHONE1
 
 async def input_phone1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone1 = update.message.text.strip()
     if not phone1:
-        await update.message.reply_text("ဖုန်းနံပါတ် ထည့်သွင်းပေးပါရန်။", reply_markup=get_cancel_kb())
+        await update.message.reply_text(
+            "ဖုန်းနံပါတ် ထည့်သွင်းပေးပါရန်။",
+            reply_markup=get_cancel_kb(back_callback="back_to_address")
+        )
         return STATE_PHONE1
         
     context.user_data["voucher"]["customer"]["phone1"] = phone1
     await update.message.reply_text(
         f"သတ်မှတ်ပြီး ဖုန်းနံပါတ် ၁: <b>{_escape(phone1)}</b>\n\nဖုန်းနံပါတ် ၂ (Phone Number 2) ကို ရိုက်ထည့်ပေးပါရန်။ (မထည့်လိုက 'Skip' ကို နှိပ်ပါ)",
         parse_mode="HTML",
-        reply_markup=get_skip_cancel_kb()
+        reply_markup=get_skip_cancel_kb(back_callback="back_to_phone1")
     )
     return STATE_PHONE2
 
@@ -148,15 +151,44 @@ async def skip_phone2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return await send_voucher_categories(update, context, query.message)
 
 
+# --- Back navigation handlers ---
+async def back_to_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "ဝယ်သူအမည် (Customer Name) ကို ပြန်လည်ရိုက်ထည့်ပေးပါရန်။",
+        reply_markup=get_cancel_kb()
+    )
+    return STATE_NAME
+
+async def back_to_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "လိပ်စာ (Address) ကို ပြန်လည်ရိုက်ထည့်ပေးပါရန်။",
+        reply_markup=get_cancel_kb(back_callback="back_to_name")
+    )
+    return STATE_ADDRESS
+
+async def back_to_phone1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "ဖုန်းနံပါတ် ၁ (Phone Number 1) ကို ပြန်လည်ရိုက်ထည့်ပေးပါရန်။",
+        reply_markup=get_cancel_kb(back_callback="back_to_address")
+    )
+    return STATE_PHONE1
+
+
 # --- Category and Product Selection (Voucher Flow specific) ---
 async def send_voucher_categories(update: Update, context: ContextTypes.DEFAULT_TYPE, message_obj=None) -> int:
     categories = sheet.get_categories()
     rows = []
     if categories:
         for i in range(0, len(categories), 2):
-            row = [InlineKeyboardButton(f"📁 {categories[i]}", callback_data=f"vcat_{categories[i]}")]
+            row = [InlineKeyboardButton(f"{i+1}. {categories[i]}", callback_data=f"vcat_{categories[i]}")]
             if i + 1 < len(categories):
-                row.append(InlineKeyboardButton(f"📁 {categories[i+1]}", callback_data=f"vcat_{categories[i+1]}"))
+                row.append(InlineKeyboardButton(f"{i+2}. {categories[i+1]}", callback_data=f"vcat_{categories[i+1]}"))
             rows.append(row)
     else:
         rows.append([InlineKeyboardButton("📦 View All Products", callback_data="v_all_products")])
@@ -232,17 +264,30 @@ async def handle_voucher_product_select(update: Update, context: ContextTypes.DE
         return STATE_SELECT_CATEGORY
         
     # Temporarily store the product we are adding
+    try:
+        avail_val = int(product["available"])
+    except (ValueError, TypeError):
+        avail_val = 0
+    try:
+        price_val = float(product["price"].replace(",", "")) if product.get("price") else 0.0
+    except (ValueError, TypeError):
+        price_val = 0.0
+
     context.user_data["voucher"]["current_item"] = {
         "id": product["id"],
         "name": product["name"],
-        "category": product["category"]
+        "category": product["category"],
+        "available": avail_val,
+        "price": price_val
     }
     
+    price_str = f"{product['price']} VND" if product.get('price') else "N/A"
     detail = (
         f"<b>{_escape(product['name'])}</b>\n\n"
         f"🏷 Brand:      {_escape(product['category'] or 'N/A')}\n"
         f"🔖 Code:       {_escape(product['id'] or 'N/A')}\n"
         f"⚖️ Weight:     {_escape(product['weight'] or 'N/A')}\n"
+        f"💰 Price:      {_escape(price_str)}\n"
         f"📦 Available:  {_escape(product['available'] or '0')}\n"
         f"🏪 Branch:     {_escape(product['branch'] or 'N/A')}\n"
         f"📅 Expiry:     {_escape(product['expiry'] or 'N/A')}"
@@ -267,7 +312,7 @@ async def handle_add_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     current_item = context.user_data["voucher"]["current_item"]
     await query.message.reply_text(
-        text=f"📦 <b>{_escape(current_item['name'])}</b>\n\nကျေးဇူးပြု၍ အရေအတွက် (Item Count) ကို ရိုက်ထည့်ပေးပါရန်။ (ဥပမာ- 5)",
+        text=f"📦 <b>{_escape(current_item['name'])}</b>\n\nကျေးဇူးပြု၍ အရေအတွက် (Item Count) ကို ရိုက်ထည့်ပေးပါရန်။ (လက်ကျန်: {current_item['available']})",
         parse_mode="HTML",
         reply_markup=get_cancel_kb()
     )
@@ -275,6 +320,7 @@ async def handle_add_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def handle_input_count(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     count_str = update.message.text.strip()
+    current_item = context.user_data["voucher"]["current_item"]
     try:
         count = int(count_str)
         if count <= 0:
@@ -286,33 +332,18 @@ async def handle_input_count(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return STATE_INPUT_COUNT
         
-    context.user_data["voucher"]["current_item"]["count"] = count
-    
-    current_item = context.user_data["voucher"]["current_item"]
-    await update.message.reply_text(
-        text=f"အရေအတွက်: {count}\n\nကျေးဇူးပြု၍ တစ်ခုချင်းစီ၏ ရောင်းစျေး (Selling Price per item) ကို ရိုက်ထည့်ပေးပါရန်။ (ဥပမာ- 2500)",
-        reply_markup=get_cancel_kb()
-    )
-    return STATE_INPUT_PRICE
-
-async def handle_input_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    price_str = update.message.text.strip()
-    try:
-        price = float(price_str.replace(",", ""))
-        if price <= 0:
-            raise ValueError()
-    except ValueError:
+    if count > current_item["available"]:
         await update.message.reply_text(
-            "⚠️ စျေးနှုန်းမှာ ကိန်းဂဏန်းအပေါင်း ဖြစ်ရပါမည်။ ထပ်မံရိုက်ထည့်ပေးပါရန်။",
+            f"⚠️ လက်ကျန်အရေအတွက်ထက် ပိုမိုရွေးချယ်ထားပါသည်။ ကျေးဇူးပြု၍ လက်ကျန် {current_item['available']} သို့မဟုတ် ထိုထက်နည်းသော အရေအတွက်ကို ထည့်သွင်းပေးပါရန်။",
             reply_markup=get_cancel_kb()
         )
-        return STATE_INPUT_PRICE
-        
-    current_item = context.user_data["voucher"]["current_item"]
-    current_item["price"] = price
-    current_item["total"] = price * current_item["count"]
+        return STATE_INPUT_COUNT
+
+    current_item["count"] = count
+    price = current_item["price"]
+    current_item["total"] = price * count
     
-    # Save current item into list
+    # Save current item into list directly since price is already retrieved
     context.user_data["voucher"]["items"].append(current_item)
     context.user_data["voucher"]["current_item"] = {} # clear temp
     
@@ -362,9 +393,8 @@ async def handle_finish_order(update: Update, context: ContextTypes.DEFAULT_TYPE
         return await send_voucher_categories(update, context)
         
     rows = [
-        [InlineKeyboardButton("Full Paid", callback_data="pay_full")],
+        [InlineKeyboardButton("Pre Paid", callback_data="pay_full")],
         [InlineKeyboardButton("COD", callback_data="pay_cod")],
-        [InlineKeyboardButton("Others", callback_data="pay_others")],
         [InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")]
     ]
     await query.edit_message_text(
@@ -380,28 +410,12 @@ async def handle_payment_type(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["voucher"]["payment"] = {}
     
     if data == "pay_full":
-        context.user_data["voucher"]["payment"]["type"] = "Full Paid"
-        rows = [
-            [InlineKeyboardButton("KPay", callback_data="method_kpay")],
-            [InlineKeyboardButton("AYAPay", callback_data="method_ayapay")],
-            [InlineKeyboardButton("Banking", callback_data="method_banking")],
-            [InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")]
-        ]
-        await query.edit_message_text(
-            "ငွေပေးချေမည့် နည်းလမ်း (Payment Method) ကို ရွေးချယ်ပါရန်:",
-            reply_markup=InlineKeyboardMarkup(rows)
-        )
-        return STATE_FULL_PAID_METHOD
+        context.user_data["voucher"]["payment"]["type"] = "Pre Paid"
+        context.user_data["voucher"]["payment"]["method"] = ""
+        return await show_delivery_charges(update, context)
     elif data == "pay_cod":
         context.user_data["voucher"]["payment"]["type"] = "COD"
-        return await ask_delivery_paid(update, context)
-    elif data == "pay_others":
-        context.user_data["voucher"]["payment"]["type"] = "Others"
-        await query.message.reply_text(
-            "လွှဲပြောင်းပေးမည့် ငွေပမာဏ (Transfer Amount) ကို ရိုက်ထည့်ပေးပါရန်:",
-            reply_markup=get_cancel_kb()
-        )
-        return STATE_OTHER_AMOUNT
+        return await show_delivery_charges(update, context)
     return STATE_PAYMENT_TYPE
 
 async def handle_full_paid_method(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -412,55 +426,127 @@ async def handle_full_paid_method(update: Update, context: ContextTypes.DEFAULT_
     if method == "Ayapay": method = "AYAPay"
     
     context.user_data["voucher"]["payment"]["method"] = method
-    return await ask_delivery_paid(update, context)
+    return await show_delivery_charges(update, context)
 
-async def handle_other_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    amount_str = update.message.text.strip()
-    try:
-        amount = float(amount_str.replace(",", ""))
-    except ValueError:
-        await update.message.reply_text("⚠️ ငွေပမာဏကို ကိန်းဂဏန်းဖြင့်သာ ရိုက်ထည့်ပေးပါရန်။", reply_markup=get_cancel_kb())
-        return STATE_OTHER_AMOUNT
-        
-    context.user_data["voucher"]["payment"]["other_amount"] = amount
-    return await ask_delivery_paid(update, context, update.message)
-
-async def ask_delivery_paid(update: Update, context: ContextTypes.DEFAULT_TYPE, message_obj=None) -> int:
+async def show_delivery_charges(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["voucher"]["payment"]["delivery_paid"] = False
+    context.user_data["voucher"]["payment"]["delivery_amount"] = 25000.0
+    
+    items = context.user_data["voucher"]["items"]
+    grand_total = sum(item["total"] for item in items)
+    del_amount = 25000.0
+    total_sum = grand_total + del_amount
+    
+    pay_type = context.user_data["voucher"]["payment"].get("type", "")
+    
     rows = [
-        [InlineKeyboardButton("Yes (Already Paid)", callback_data="del_paid_yes")],
-        [InlineKeyboardButton("No (Not Paid)", callback_data="del_paid_no")],
+        [InlineKeyboardButton("🆗 OK", callback_data="del_confirm_ok")],
         [InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")]
     ]
-    text = "Delivery ခ ပေးပြီးပြီလား? (Customer already paid delivery charges?)"
     
-    if message_obj:
-        await message_obj.reply_text(text, reply_markup=InlineKeyboardMarkup(rows))
-    else:
-        query = update.callback_query
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(rows))
-    return STATE_DELIVERY_PAID
-
-async def handle_delivery_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = (
+        f"ℹ️ <b>Delivery Charges & Order Total:</b>\n\n"
+        f"📋 Payment Type: <b>{pay_type}</b>\n"
+        f"💵 Items Total: <b>{grand_total:,.0f} VND</b>\n"
+        f"🛵 Delivery Charges: <b>{del_amount:,.0f} VND</b>\n"
+        f"---------------------------\n"
+        f"💰 <b>Total Amount: {total_sum:,.0f} VND</b>"
+    )
+    
     query = update.callback_query
-    await query.answer()
-    is_paid = query.data == "del_paid_yes"
-    context.user_data["voucher"]["payment"]["delivery_paid"] = is_paid
-    
-    await query.message.reply_text(
-        "Delivery ခ ပမာဏ (Delivery Amount) ကို ရိုက်ထည့်ပေးပါရန်:",
-        reply_markup=get_cancel_kb()
+    await query.edit_message_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(rows)
     )
     return STATE_DELIVERY_AMOUNT
 
-async def handle_delivery_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    amount_str = update.message.text.strip()
+async def handle_delivery_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    pay_type = context.user_data["voucher"]["payment"].get("type", "")
+    if pay_type == "Pre Paid":
+        return await show_prepaid_qr(update, context)
+    else:
+        return await generate_and_send_pdf(update, context)
+
+async def show_prepaid_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    
+    # Send payment QR code image
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    image_path = os.path.join(base_dir, "payment_qr.jpg")
+    if os.path.exists(image_path):
+        try:
+            with open(image_path, "rb") as photo_file:
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=photo_file,
+                    caption="💳 Pre Paid ဖြင့် ငွေချေရန် QR ကုဒ် ဖြစ်ပါသည်။"
+                )
+        except Exception as e:
+            logger.error(f"Error sending payment QR: {e}")
+            
+    rows = [
+        [InlineKeyboardButton("❌ Cancel Order", callback_data="v_cancel")]
+    ]
+    await query.edit_message_text(
+        "ငွေပေးချေပြီးပါက Transition Slip (ငွေလွှဲဖြတ်ပိုင်း) ကို ပေးပို့ပေးပါရန်။",
+        reply_markup=InlineKeyboardMarkup(rows)
+    )
+    return STATE_DELIVERY_PAID
+
+async def handle_payment_slip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Check if a photo or document was uploaded
+    photo = None
+    if update.message.photo:
+        photo = update.message.photo[-1]
+    elif update.message.document and update.message.document.mime_type.startswith("image/"):
+        photo = update.message.document
+
+    if not photo:
+        await update.message.reply_text("⚠️ ကျေးဇူးပြု၍ ငွေလွှဲစလစ် ဓာတ်ပုံကိုသာ ပေးပို့ပေးပါရန်။")
+        return STATE_DELIVERY_PAID
+
+    msg = await update.message.reply_text("📥 ငွေလွှဲစလစ်ကို သိမ်းဆည်းနေပါသည်...")
+
     try:
-        amount = float(amount_str.replace(",", ""))
-    except ValueError:
-        await update.message.reply_text("⚠️ ပမာဏကို ကိန်းဂဏန်းဖြင့်သာ ရိုက်ထည့်ပေးပါရန်။", reply_markup=get_cancel_kb())
-        return STATE_DELIVERY_AMOUNT
+        # Download photo
+        file_obj = await context.bot.get_file(photo.file_id)
         
-    context.user_data["voucher"]["payment"]["delivery_amount"] = amount
+        import tempfile
+        import uuid
+        customer_name = context.user_data["voucher"]["customer"].get("name", "customer")
+        ext = ".jpg"
+        if hasattr(photo, "file_name") and photo.file_name:
+            _, ext = os.path.splitext(photo.file_name)
+        if not ext:
+            ext = ".jpg"
+            
+        local_filename = f"slip_{uuid.uuid4().hex[:8]}{ext}"
+        local_path = os.path.join(tempfile.gettempdir(), local_filename)
+        await file_obj.download_to_drive(local_path)
+        
+        # Upload to Google Drive
+        drive_folder_id = "1ztev83FQZfqgNbUKNTKAmri0RQ5mCASY"
+        drive_filename = f"Slip_{customer_name}_{datetime.now().strftime('%y%m%d_%H%M%S')}{ext}"
+        
+        drive_file_id = sheet.upload_file_to_drive(local_path, drive_filename, drive_folder_id)
+        
+        # Save drive file ID in context payment info if needed
+        context.user_data["voucher"]["payment"]["slip_drive_id"] = drive_file_id
+        
+        # Clean up local file
+        if os.path.exists(local_path):
+            os.remove(local_path)
+            
+        await msg.edit_text("✅ ငွေလွှဲစလစ်ကို Google Drive သို့ သိမ်းဆည်းပြီးပါပြီ။")
+    except Exception as exc:
+        logger.error(f"Error handling payment slip: {exc}")
+        await msg.edit_text("⚠️ ငွေလွှဲစလစ် သိမ်းဆည်းရာတွင် အမှားအယွင်းရှိခဲ့သော်လည်း ဘောက်ချာ ဆက်လက်ထုတ်ပေးပါမည်။")
+
+    # Generate and send PDF
     return await generate_and_send_pdf(update, context)
 
 import uuid
@@ -471,7 +557,7 @@ async def generate_and_send_pdf(update: Update, context: ContextTypes.DEFAULT_TY
     payment = context.user_data["voucher"]["payment"]
     chat_id = update.effective_chat.id
     
-    msg = await update.message.reply_text("📄 ဘောက်ချာ PDF နှင့် အချက်အလက်များ သိမ်းဆည်းနေပါသည်...")
+    msg = await update.effective_message.reply_text("📄 ဘောက်ချာ PDF နှင့် အချက်အလက်များ သိမ်းဆည်းနေပါသည်...")
     
     # Generate Unique Order ID
     order_id = str(uuid.uuid4())[:8].upper()
@@ -557,16 +643,18 @@ def build_voucher_handler() -> ConversationHandler:
             ],
             STATE_ADDRESS: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, input_address),
-                CallbackQueryHandler(skip_address, pattern="^v_skip$"),
+                CallbackQueryHandler(back_to_name, pattern="^back_to_name$"),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ],
             STATE_PHONE1: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, input_phone1),
+                CallbackQueryHandler(back_to_address, pattern="^back_to_address$"),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ],
             STATE_PHONE2: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, input_phone2),
                 CallbackQueryHandler(skip_phone2, pattern="^v_skip$"),
+                CallbackQueryHandler(back_to_phone1, pattern="^back_to_phone1$"),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ],
             STATE_SELECT_CATEGORY: [
@@ -588,10 +676,6 @@ def build_voucher_handler() -> ConversationHandler:
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_input_count),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ],
-            STATE_INPUT_PRICE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_input_price),
-                CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
-            ],
             STATE_DECIDE_NEXT: [
                 CallbackQueryHandler(handle_one_more, pattern="^v_one_more$"),
                 CallbackQueryHandler(handle_finish_order, pattern="^v_finish$"),
@@ -605,16 +689,12 @@ def build_voucher_handler() -> ConversationHandler:
                 CallbackQueryHandler(handle_full_paid_method, pattern="^method_"),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ],
-            STATE_OTHER_AMOUNT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_other_amount),
+            STATE_DELIVERY_AMOUNT: [
+                CallbackQueryHandler(handle_delivery_confirm, pattern="^del_confirm_ok$"),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ],
             STATE_DELIVERY_PAID: [
-                CallbackQueryHandler(handle_delivery_paid, pattern="^del_paid_"),
-                CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
-            ],
-            STATE_DELIVERY_AMOUNT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_delivery_amount),
+                MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_payment_slip),
                 CallbackQueryHandler(cancel_voucher, pattern="^v_cancel$")
             ]
         },

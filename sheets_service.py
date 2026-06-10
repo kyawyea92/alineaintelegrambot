@@ -70,6 +70,7 @@ def get_all_products() -> list[dict]:
                     "available": str(row.get("Available Count", "")).strip(),
                     "branch": str(row.get("Branch Name", "")).strip(),
                     "expiry": str(row.get("Expiry Date", "")).strip(),
+                    "price": str(row.get("Selling Price", "")).strip(),
                 }
             )
         return products
@@ -85,12 +86,26 @@ def get_categories() -> list[str]:
     for p in products:
         cat = p["category"]
         if cat and cat not in seen:
-            seen.append(cat)
+            try:
+                available = int(p["available"])
+            except (ValueError, TypeError):
+                available = 0
+            if available > 0:
+                seen.append(cat)
     return seen
 
 
 def get_products_by_category(category: str) -> list[dict]:
-    return [p for p in get_all_products() if p["category"] == category]
+    products = []
+    for p in get_all_products():
+        if p["category"] == category:
+            try:
+                available = int(p["available"])
+            except (ValueError, TypeError):
+                available = 0
+            if available > 0:
+                products.append(p)
+    return products
 
 
 def get_product_by_id(product_id: str) -> dict | None:
@@ -237,3 +252,52 @@ def reduce_stock(items: list):
         print("✅ Stock reduction complete.")
     except Exception as exc:
         print(f"❌ Error reducing stock: {exc}")
+
+
+def upload_file_to_drive(local_path: str, filename: str, folder_id: str) -> str | None:
+    """Uploads a local file to a specific Google Drive folder via Google Apps Script Web App."""
+    import requests
+    import base64
+    import json
+    
+    try:
+        apps_script_url = os.getenv("APPS_SCRIPT_URL")
+        if not apps_script_url:
+            print("❌ APPS_SCRIPT_URL missing from environment variables.")
+            return None
+        
+        # Read and encode file as base64
+        with open(local_path, "rb") as f:
+            file_bytes = f.read()
+        base64_data = base64.b64encode(file_bytes).decode("utf-8")
+        
+        payload = {
+            "filename": filename,
+            "folderId": folder_id,
+            "base64Data": base64_data
+        }
+        
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(
+            apps_script_url,
+            headers=headers,
+            data=json.dumps(payload),
+            allow_redirects=True,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") == "success":
+                file_id = result.get("id")
+                print(f"✅ Successfully uploaded file to Google Drive via Apps Script. File ID: {file_id}")
+                return file_id
+            else:
+                print(f"❌ Apps Script error: {result.get('message')}")
+                return None
+        else:
+            print(f"❌ Error calling Apps Script: {response.status_code} - {response.text}")
+            return None
+    except Exception as exc:
+        print(f"❌ Exception uploading file via Apps Script: {exc}")
+        return None

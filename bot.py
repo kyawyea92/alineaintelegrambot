@@ -42,7 +42,7 @@ def _kb(rows: list[list[InlineKeyboardButton]]) -> InlineKeyboardMarkup:
 def main_menu_kb() -> InlineKeyboardMarkup:
     return _kb([
         [InlineKeyboardButton("🧾 Open Voucher", callback_data="menu_voucher")],
-        [InlineKeyboardButton("📦 View Products", callback_data="menu_categories")],
+        [InlineKeyboardButton("📦 Check Stock", callback_data="menu_categories")],
         [InlineKeyboardButton("ℹ️ Help / Info",   callback_data="menu_help")],
     ])
 
@@ -103,9 +103,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if categories:
             # Two categories per row
             for i in range(0, len(categories), 2):
-                row = [InlineKeyboardButton(f"📁 {categories[i]}", callback_data=f"cat_{categories[i]}")]
+                row = [InlineKeyboardButton(f"{i+1}. {categories[i]}", callback_data=f"cat_{categories[i]}")]
                 if i + 1 < len(categories):
-                    row.append(InlineKeyboardButton(f"📁 {categories[i+1]}", callback_data=f"cat_{categories[i+1]}"))
+                    row.append(InlineKeyboardButton(f"{i+2}. {categories[i+1]}", callback_data=f"cat_{categories[i+1]}"))
                 rows.append(row)
         else:
             rows.append([InlineKeyboardButton("📦 View All Products", callback_data="all_products")])
@@ -172,11 +172,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
             return
 
+        price_str = f"{product['price']} VND" if product.get('price') else "N/A"
         detail = (
             f"*{_escape_md(product['name'])}*\n\n"
             f"🏷 Brand:      {_escape_md(product['category'] or 'N/A')}\n"
             f"🔖 Code:       {_escape_md(product['id'] or 'N/A')}\n"
             f"⚖️ Weight:     {_escape_md(product['weight'] or 'N/A')}\n"
+            f"💰 Price:      {_escape_md(price_str)}\n"
             f"📦 Available:  {_escape_md(product['available'] or '0')}\n"
             f"🏪 Branch:     {_escape_md(product['branch'] or 'N/A')}\n"
             f"📅 Expiry:     {_escape_md(product['expiry'] or 'N/A')}"

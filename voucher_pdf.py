@@ -138,11 +138,11 @@ def generate_voucher_pdf(customer_info: dict, items: list, payment_info: dict, o
     del_paid = payment_info.get("delivery_paid", False)
     
     payment_str = f"{pay_type}"
-    if pay_type == "Full Paid" and method:
+    if pay_type == "Pre Paid" and method:
         payment_str += f" ({method})"
         
     # Calculate Paid and Left Amount
-    if pay_type == "Full Paid":
+    if pay_type == "Pre Paid":
         paid_amount_str = f"{grand_total:,.0f} VND"
         left_amount_str = "0 VND"
     elif pay_type == "Others":
