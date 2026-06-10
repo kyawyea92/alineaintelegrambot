@@ -217,11 +217,18 @@ def _escape_md(text: str) -> str:
 
 
 # ─────────────────────────── Entry point ─────────────────────────────────────
+def main():
+    import os
 
-def main() -> None:
+    print("TELEGRAM_BOT_TOKEN =", os.getenv("TELEGRAM_BOT_TOKEN"))
+    
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
-        raise RuntimeError("❌ TELEGRAM_BOT_TOKEN is missing from .env")
+        raise RuntimeError("❌ TELEGRAM_BOT_TOKEN is missing")
+# def main() -> None:
+#     token = os.getenv("TELEGRAM_BOT_TOKEN")
+#     if not token:
+#         raise RuntimeError("❌ TELEGRAM_BOT_TOKEN is missing from .env")
 
     logger.info("🤖 Connecting to Google Sheets …")
     # Warm up the sheet connection at startup so the first user doesn't wait
