@@ -81,16 +81,18 @@ def generate_voucher_pdf(customer_info: dict, items: list, payment_info: dict, o
     
     # Table Header
     # Column widths
-    w_name = 90
-    w_count = 25
-    w_price = 35
-    w_total = 40
+    w_brand = 35
+    w_name = 75
+    w_count = 20
+    w_price = 30
+    w_total = 30
     
     pdf.set_font("Pyidaungsu", size=11)
     
     # Header cells
+    pdf.cell(w_brand, 10, "Brand", border=1, align="C")
     pdf.cell(w_name, 10, "ပစ္စည်းအမည် (Product)", border=1, align="C")
-    pdf.cell(w_count, 10, "အရေအတွက်", border=1, align="C")
+    pdf.cell(w_count, 10, "အရေ", border=1, align="C")
     pdf.cell(w_price, 10, "နှုန်း (Price)", border=1, align="C")
     pdf.cell(w_total, 10, "သင့်ငွေ (Total)", border=1, align="C", new_x="LMARGIN", new_y="NEXT")
     
@@ -99,35 +101,51 @@ def generate_voucher_pdf(customer_info: dict, items: list, payment_info: dict, o
     # Table Rows
     pdf.set_font("Pyidaungsu", size=10)
     for item in items:
+        brand = item.get("category", "") or ""
         name = item["name"]
         count = item["count"]
         price = item["price"]
         total = item["total"]
         grand_total += total
         
-        # Calculate height if name needs wrapping (multi-line)
-        # Using multi_cell is a bit complex for dynamic line heights, 
-        # so let's check text length or use basic cells, or just truncate / wrap
-        # To keep it simple, we can use multi_cell or simple cell.
-        # Since product names can be long, let's use a multi_cell helper or simple wrapping.
-        # Let's write name in a cell, but to keep it aligned with other columns:
-        # We can get current x, y, draw multi_cell for name, then set x, y back for others.
+        # Calculate height based on the tallest multi_cell (brand or name)
+        # We use multi_cell for both brand and name columns, then align others.
         x_before = pdf.get_x()
         y_before = pdf.get_y()
         
+        # Measure brand column height
+        pdf.multi_cell(w_brand, 8, brand, border=1, align="L")
+        y_after_brand = pdf.get_y()
+        
+        # Measure name column height (reset to same y)
+        pdf.set_xy(x_before + w_brand, y_before)
         pdf.multi_cell(w_name, 8, name, border=1, align="L")
-        y_after = pdf.get_y()
-        height = y_after - y_before
+        y_after_name = pdf.get_y()
+        
+        # Use the taller of the two
+        height = max(y_after_brand, y_after_name) - y_before
+        
+        # Redraw brand and name cells with correct height if needed
+        # (multi_cell already drew them; for consistent borders redraw if heights differ)
+        if y_after_brand != y_after_name:
+            # Redraw brand with full height
+            pdf.set_xy(x_before, y_before)
+            pdf.multi_cell(w_brand, 8, brand, border=1, align="L", max_line_height=8)
+            # Redraw name with full height
+            pdf.set_xy(x_before + w_brand, y_before)
+            pdf.multi_cell(w_name, 8, name, border=1, align="L", max_line_height=8)
         
         # Draw other columns with the same height
-        pdf.set_xy(x_before + w_name, y_before)
+        pdf.set_xy(x_before + w_brand + w_name, y_before)
         pdf.cell(w_count, height, str(count), border=1, align="C")
         pdf.cell(w_price, height, f"{price:,.0f} VND", border=1, align="R")
         pdf.cell(w_total, height, f"{total:,.0f} VND", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
         
+        pdf.set_y(y_before + height)
+        
     # Grand Total row
     pdf.set_font("Pyidaungsu", size=11)
-    pdf.cell(w_name + w_count + w_price, 10, "စုစုပေါင်းသင့်ငွေ (Total Amount): ", border=1, align="R")
+    pdf.cell(w_brand + w_name + w_count + w_price, 10, "စုစုပေါင်းသင့်ငွေ (Total Amount): ", border=1, align="R")
     pdf.cell(w_total, 10, f"{grand_total:,.0f} VND", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
     
     # Extract Payment Info
@@ -158,19 +176,19 @@ def generate_voucher_pdf(customer_info: dict, items: list, payment_info: dict, o
         left_amount_str = f"{grand_total:,.0f} VND"
 
     # Payment Type Row
-    pdf.cell(w_name + w_count + w_price, 10, "Payment Type: ", border=1, align="R")
+    pdf.cell(w_brand + w_name + w_count + w_price, 10, "Payment Type: ", border=1, align="R")
     pdf.cell(w_total, 10, payment_str, border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
     # Delivery Charges Row
-    pdf.cell(w_name + w_count + w_price, 10, "Delivery Charges: ", border=1, align="R")
+    pdf.cell(w_brand + w_name + w_count + w_price, 10, "Delivery Charges: ", border=1, align="R")
     pdf.cell(w_total, 10, f"{del_amount:,.0f} VND" if del_amount > 0 else "-", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
     # Paid Amount Row
-    pdf.cell(w_name + w_count + w_price, 10, "Paid Amount: ", border=1, align="R")
+    pdf.cell(w_brand + w_name + w_count + w_price, 10, "Paid Amount: ", border=1, align="R")
     pdf.cell(w_total, 10, paid_amount_str, border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
     # Left Amount Row
-    pdf.cell(w_name + w_count + w_price, 10, "Left Amount: ", border=1, align="R")
+    pdf.cell(w_brand + w_name + w_count + w_price, 10, "Left Amount: ", border=1, align="R")
     pdf.cell(w_total, 10, left_amount_str, border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
     pdf.ln(5)
